@@ -1,0 +1,139 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Osian Davies"
+date: "14 January 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Introduction 
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit, it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Project Aims:
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. I may use any of the other variables to predict with. This is a report describing how I built your model, how I used cross validation, what I think the expected out of sample error is, and why I've made the choices I did. I will also use my prediction model to predict 20 different test cases.
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
+
+## Preparing the R Workspace and Exploratory Analysis
+
+```{r wd, echo=FALSE, include=FALSE}
+setwd("C:/Users/osian/Desktop/Machine Learning/Project")
+```
+```{r packages, include=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(rattle)
+```
+
+First I imported the data into R,
+```{r import}
+raw.test <- read.csv(file = "pml-testing.csv", header = T)
+raw.training <- read.csv(file = "pml-training.csv", header = T)
+```
+and then did some exploring on the training dataset.
+```{r dim}
+dim(raw.training)
+```
+There are 160 variables - many of which will negatively affect for model. Therefore I've decided to sensibly narrow down the amount of variables needed.
+
+The first 7 columns consists of IDs, usernames and timestamps. I will first remove these columns as I believe that they won't be needed.
+```{r removecolumns1}
+wip.training <- raw.training[-(1:7)]
+```
+Many columns contains NAs, so first to check how NAs is distributed among all columns.
+```{r NA}
+colSums(is.na(wip.training))
+```
+We can see that these columns either have the majority of the observations being NAs or they don't have any NAs at all. Hence I remove all columns with NAs.
+```{r rmNA}
+wip.training <- wip.training[sapply(wip.training, function(x) !any(is.na(x)))]
+```
+Finally, I will also check for variables with near zero variance - this will get rid of variables that are (near) constant and missing values.
+```{r rmNZV}
+nzv <- nearZeroVar(wip.training, saveMetrics = T)
+wip.training <- wip.training[,nzv$nzv == FALSE]
+```
+Preparing the data - done!
+```{r ready}
+train <- wip.training
+```
+
+## Splitting Data To Get Training and Test sets
+
+I will split the prepared dataframe into a training set and a test set which we can use to help predict the classe of the values in the testing csv file. I will partition this dataframe into 60% training and 40% testing sets.
+
+```{r partition}
+set.seed(123)
+part <- createDataPartition(y = train$classe, p = 0.6, list = FALSE)
+train.Train <- train[part,]
+train.Test <- train[-part,]
+```
+
+## Model Building
+
+We first look at predicting classe values using the Decision Tree algorithm.
+
+```{r dt}
+DT.Fit <- rpart(classe ~ ., data = train.Train, method = "class")
+fancyRpartPlot(DT.Fit)
+```
+
+Now I use this to predict the results of the test data and build a confusion Matrix to test the results with the actual results.
+
+```{r cm1}
+predictionDT <- predict(DT.Fit, train.Test, type = "class")
+confusionMatrix(predictionDT, train.Test$classe)
+```
+
+Here we had a result of around 77% accuracy. With a out-sample error of 23%, this result is not yet know to be good or bad, so need to compare this with another algorithm. 
+
+So for (maybe hopefully) better results, I will now try predicting values using the Random Forests algorithm.
+
+```{r rf}
+RF.Fit <- randomForest(classe ~ . , data = train.Train)
+predictionRF <- predict(RF.Fit, train.Train, type = "class")
+confusionMatrix(predictionRF, train.Train$classe)
+```
+
+This brings back 100% accuracy! 
+
+## Generating results as answers for the assignment
+
+I will now use the Random Forests algorithm to predict the classe for the testing data.
+
+``` {r final}
+prediction <- predict(RF.Fit, raw.test, type = "class")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
